@@ -30,15 +30,28 @@ pub mod map {
     }
 
     pub fn pixels_to_meters(px: f64, py: f64, map_state: &Arc<MapState>) -> (f64, f64) {
+        println!("pixels to meters:");
         let pp = *map_state.pan_position.read().unwrap();
         let zoom_level = *map_state.zoom_level.read().unwrap() as f64;
+
         // Adjust for panning and zooming (pixel x,y to absolute x,y)
-        let ax = (px * zoom_level) - pp.0;
-        let ay = (py * zoom_level) - pp.1;
+        let ax = (px - pp.0) / zoom_level;
+        let ay = (py - pp.1) / zoom_level;
         let res = self::resolution(zoom_level * BASE_ZOOM_FACTOR);
 
         let mx = ax * res - ORIGIN_SHIFT;
         let my = ay * res - ORIGIN_SHIFT;
+
+        println!(
+            "Click position: {:?}\nPan position: {:?}\nZoom level: {}\nAbsolute position: {:?}\nResolution: {:?}\nMeter position: {:?}",
+            (px, py),
+            pp,
+            zoom_level,
+            (ax, ay),
+            res,
+            (mx, my)
+        );
+
         (mx, my)
     }
 }

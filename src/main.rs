@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use gtk::{
     gdk::{Event, EventMask, EventMotion, EventScroll, ScrollDirection},
     gdk_pixbuf::Pixbuf,
+    glib,
     prelude::*,
     DrawingArea, EventBox,
 };
@@ -19,6 +20,28 @@ pub struct MapState {
     zoom_level: RwLock<f32>,
 
     mouse_position: RwLock<(f64, f64)>,
+}
+
+async fn dialog(pos: (f64, f64), map_state: Arc<MapState>) {
+    // Since the mouse has been released, test if we actually dragged
+    // or just clicked. If we just clicked, let's get the lattitude and
+    // longitude of the click.
+    println!("Click!");
+    let meters = pixels_to_meters(pos.0, pos.1, &map_state);
+    let latlon = meters_to_lat_lon(meters.0, meters.1);
+
+    let info_dialog = gtk::MessageDialog::builder()
+        .modal(true)
+        .buttons(gtk::ButtonsType::Close)
+        .text("Results")
+        .secondary_text(&format!(
+            "Lattitude and longitude of click on map: {:?}",
+            latlon
+        ))
+        .build();
+
+    info_dialog.run_future().await;
+    info_dialog.close();
 }
 
 fn build_ui(application: &gtk::Application) {
@@ -106,16 +129,20 @@ fn build_ui(application: &gtk::Application) {
             let mut panning = map_state.panning.write().unwrap();
             *panning = false;
 
-            // Since the mouse has been released, test if we actually dragged
-            // or just clicked. If we just clicked, let's get the lattitude and
-            // longitude of the click.
-            if !did_pan {
-                println!("Click!");
-                let meters = pixels_to_meters(event.position().0, event.position().1, &map_state);
-                let latlon = meters_to_lat_lon(meters.0, meters.1);
-                println!("Lattitude and longitude of click on map: {:?}", latlon);
-            }
+            // Don't need these any more, and if we're gonna read from some of
+            // them later, in the lat-lon code, then we need to drop the write
+            // handles for it to not block
+            drop(panning);
+            drop(pan_position);
+            drop(pan_delta);
 
+            // Calculate the lattitude and longitude (and eventually run the
+            // model) on a new thread, that's popped up in a dialog to display
+            // the results and indicate a computation is occuring
+            if !did_pan {
+                glib::MainContext::default()
+                    .spawn_local(dialog(event.position(), map_state.clone()));
+            }
             Inhibit(false)
         });
     }
@@ -126,7 +153,6 @@ fn build_ui(application: &gtk::Application) {
         evt_box.connect_motion_notify_event(move |evt_box, motion_event: &EventMotion| {
             let mut mouse_position = map_state.mouse_position.write().unwrap();
             *mouse_position = motion_event.position();
-            println!("Mouse position: {:?}", mouse_position);
 
             if *map_state.panning.read().unwrap() {
                 let mut pan_delta = map_state.pan_delta.write().unwrap();
@@ -136,7 +162,6 @@ fn build_ui(application: &gtk::Application) {
                     motion_event.position().0 - pan_start_pos.0,
                     motion_event.position().1 - pan_start_pos.1,
                 );
-                println!("Pan position: {:?}", pan_delta);
 
                 evt_box.child().unwrap().queue_draw();
             }
