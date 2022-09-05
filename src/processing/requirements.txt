@@ -1,0 +1,3 @@
+tensorflow
+sqlite3
+arcgis
