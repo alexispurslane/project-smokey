@@ -1,20 +1,16 @@
-use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
-    io::Error,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use gtk::{
-    cairo::{ImageSurface, Surface},
-    gdk::{Event, EventMask, EventMotion, EventScroll, ModifierType, ScrollDirection},
-    gdk_pixbuf::{InterpType, Pixbuf},
-    glib::clone,
+    gdk::{Event, EventMask, EventMotion, EventScroll, ScrollDirection},
+    gdk_pixbuf::Pixbuf,
     prelude::*,
-    DrawingArea, EventBox, Image,
+    DrawingArea, EventBox,
 };
 
-struct MapState {
+mod utils;
+use crate::utils::map::{meters_to_lat_lon, pixels_to_meters};
+
+pub struct MapState {
     pan_position: RwLock<(f64, f64)>,
     pan_start_pos: RwLock<(f64, f64)>,
     pan_delta: RwLock<(f64, f64)>,
@@ -78,7 +74,7 @@ fn build_ui(application: &gtk::Application) {
     {
         let map_state = map_state.clone();
 
-        evt_box.connect_button_press_event(move |evt_box, event| {
+        evt_box.connect_button_press_event(move |_evt_box, event| {
             // We're panning
             let mut panning = map_state.panning.write().unwrap();
             *panning = true;
@@ -95,7 +91,7 @@ fn build_ui(application: &gtk::Application) {
     {
         let map_state = map_state.clone();
 
-        evt_box.connect_button_release_event(move |evt_box, event| {
+        evt_box.connect_button_release_event(move |_evt_box, event| {
             let mut pan_delta = map_state.pan_delta.write().unwrap();
             // Update the position of the image
             let mut pan_position = map_state.pan_position.write().unwrap();
@@ -104,10 +100,21 @@ fn build_ui(application: &gtk::Application) {
             // drags, since the position of the image has been updated we nor
             // longer need to add anything to it to make it match the dragged
             // location, otherwise we're double counting!)
+            let did_pan = !(pan_delta.0 == 0.0 && pan_delta.1 == 0.0);
             *pan_delta = (0.0, 0.0);
 
             let mut panning = map_state.panning.write().unwrap();
             *panning = false;
+
+            // Since the mouse has been released, test if we actually dragged
+            // or just clicked. If we just clicked, let's get the lattitude and
+            // longitude of the click.
+            if !did_pan {
+                println!("Click!");
+                let meters = pixels_to_meters(event.position().0, event.position().1, &map_state);
+                let latlon = meters_to_lat_lon(meters.0, meters.1);
+                println!("Lattitude and longitude of click on map: {:?}", latlon);
+            }
 
             Inhibit(false)
         });
@@ -155,7 +162,7 @@ fn build_ui(application: &gtk::Application) {
             (pan_position.1 + pan_delta.1) / *zoom_level as f64 - 94.0,
         );
 
-        cr.paint();
+        cr.paint().expect("Can't paint?");
 
         Inhibit(false)
     });
