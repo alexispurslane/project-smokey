@@ -16,8 +16,12 @@ use gtk::{
 
 struct MapState {
     pan_position: RwLock<(f64, f64)>,
+    pan_start_pos: RwLock<(f64, f64)>,
+    pan_delta: RwLock<(f64, f64)>,
     panning: RwLock<bool>,
+
     zoom_level: RwLock<f32>,
+
     mouse_position: RwLock<(f64, f64)>,
 }
 
@@ -42,6 +46,8 @@ fn build_ui(application: &gtk::Application) {
 
     let map_state = Arc::new(MapState {
         pan_position: RwLock::new((0.0, 0.0)),
+        pan_start_pos: RwLock::new((0.0, 0.0)),
+        pan_delta: RwLock::new((0.0, 0.0)),
         mouse_position: RwLock::new((0.0, 0.0)),
         zoom_level: RwLock::new(1.0),
         panning: RwLock::new(false),
@@ -73,8 +79,14 @@ fn build_ui(application: &gtk::Application) {
         let map_state = map_state.clone();
 
         evt_box.connect_button_press_event(move |evt_box, event| {
+            // We're panning
             let mut panning = map_state.panning.write().unwrap();
             *panning = true;
+
+            // This is where we started (needed to calculate user's mouse
+            // motion, the position delta)
+            let mut pan_start_pos = map_state.pan_start_pos.write().unwrap();
+            *pan_start_pos = event.position();
 
             Inhibit(false)
         });
@@ -84,6 +96,16 @@ fn build_ui(application: &gtk::Application) {
         let map_state = map_state.clone();
 
         evt_box.connect_button_release_event(move |evt_box, event| {
+            let mut pan_delta = map_state.pan_delta.write().unwrap();
+            // Update the position of the image
+            let mut pan_position = map_state.pan_position.write().unwrap();
+            *pan_position = (pan_position.0 + pan_delta.0, pan_position.1 + pan_delta.1);
+            // Then reset delta to zero for the next drag (and for in between
+            // drags, since the position of the image has been updated we nor
+            // longer need to add anything to it to make it match the dragged
+            // location, otherwise we're double counting!)
+            *pan_delta = (0.0, 0.0);
+
             let mut panning = map_state.panning.write().unwrap();
             *panning = false;
 
@@ -100,9 +122,14 @@ fn build_ui(application: &gtk::Application) {
             println!("Mouse position: {:?}", mouse_position);
 
             if *map_state.panning.read().unwrap() {
-                let mut pan_position = map_state.pan_position.write().unwrap();
-                *pan_position = motion_event.position();
-                println!("Pan position: {:?}", pan_position);
+                let mut pan_delta = map_state.pan_delta.write().unwrap();
+                let pan_start_pos = map_state.pan_start_pos.read().unwrap();
+                // How did the user drag the mouse from the start position?
+                *pan_delta = (
+                    motion_event.position().0 - pan_start_pos.0,
+                    motion_event.position().1 - pan_start_pos.1,
+                );
+                println!("Pan position: {:?}", pan_delta);
 
                 evt_box.child().unwrap().queue_draw();
             }
@@ -118,10 +145,14 @@ fn build_ui(application: &gtk::Application) {
         cr.scale(*zoom_level as f64, *zoom_level as f64);
 
         let pan_position = map_state.pan_position.read().unwrap();
+        let pan_delta = map_state.pan_delta.read().unwrap();
+        // Reproduce the user's dragging motion relative to the actual position
+        // of the image so that it doesn't reset to the user's cursor every
+        // time they drag
         cr.set_source_pixbuf(
             &pixbuf,
-            (pan_position.0) / *zoom_level as f64 - 130.0,
-            (pan_position.1) / *zoom_level as f64 - 94.0,
+            (pan_position.0 + pan_delta.0) / *zoom_level as f64 - 130.0,
+            (pan_position.1 + pan_delta.1) / *zoom_level as f64 - 94.0,
         );
 
         cr.paint();
