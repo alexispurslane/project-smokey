@@ -144,8 +144,8 @@ fn build_ui(application: &gtk::Application) {
         });
     }
 
-    let pixbuf = Pixbuf::from_file("mercator-projected-map.jpg")
-        .expect("Can't load image necessary for application");
+    let pixbuf =
+        Pixbuf::from_file("assets/rawmap.png").expect("Can't load image necessary for application");
     let drawing_area = Box::new(DrawingArea::new)();
     drawing_area.connect_draw(move |_, cr| {
         let zoom_level = map_state.zoom_level.read().unwrap();
