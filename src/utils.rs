@@ -46,6 +46,7 @@ pub mod map {
         // corner of the north pole (in mercator) and that's not how mercator
         // coordinates actually work --- they measure from the equator! So we
         // need to subtract from half the height of the unrolled mercator Earth
+        let mx = mx - ORIGIN_SHIFT;
         let my = ORIGIN_SHIFT - my;
 
         (mx, my)
