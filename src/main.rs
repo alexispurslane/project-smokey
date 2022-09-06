@@ -9,7 +9,7 @@ use gtk::{
 };
 
 mod utils;
-use crate::utils::map::{meters_to_lat_lon, pixels_to_meters};
+use crate::utils::map::{meters_to_lon_lat, pixels_to_meters};
 
 pub struct MapState {
     pan_position: RwLock<(f64, f64)>,
@@ -28,16 +28,13 @@ async fn dialog(pos: (f64, f64), map_state: Arc<MapState>) {
     // longitude of the click.
     println!("Click!");
     let meters = pixels_to_meters(pos.0, pos.1, &map_state);
-    let latlon = meters_to_lat_lon(meters.0, meters.1);
+    let lonlat = meters_to_lon_lat(meters.0, meters.1);
 
     let info_dialog = gtk::MessageDialog::builder()
         .modal(true)
         .buttons(gtk::ButtonsType::Close)
         .text("Results")
-        .secondary_text(&format!(
-            "Lattitude and longitude of click on map: {:?}",
-            latlon
-        ))
+        .secondary_text(&format!("(LONG, LAT): {:?}", lonlat))
         .build();
 
     info_dialog.run_future().await;
@@ -183,8 +180,8 @@ fn build_ui(application: &gtk::Application) {
         // time they drag
         cr.set_source_pixbuf(
             &pixbuf,
-            (pan_position.0 + pan_delta.0) / *zoom_level as f64 - 130.0,
-            (pan_position.1 + pan_delta.1) / *zoom_level as f64 - 94.0,
+            (pan_position.0 + pan_delta.0) / *zoom_level as f64,
+            (pan_position.1 + pan_delta.1) / *zoom_level as f64,
         );
 
         cr.paint().expect("Can't paint?");

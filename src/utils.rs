@@ -1,56 +1,52 @@
 pub mod map {
 
-    // map image zoom factor: 2.73
-    // map image start coordinates: (0, 126)
-
+    use proj::Proj;
+    use std::f64::consts::*;
     use std::sync::Arc;
 
     use crate::MapState;
 
-    pub const INITIAL_RESOLUTION: f64 = 2.0 * std::f64::consts::PI;
-    pub const ORIGIN_SHIFT: f64 = 2.0 * std::f64::consts::PI * 6378137.0 / 2.0;
+    // Width (and height, since mercator is square) of the earth when unrolled
+    pub const ORIGIN_SHIFT: f64 = 2.0 * PI * (6378137.0 / 2.0);
 
-    pub const BASE_ZOOM_FACTOR: f64 = 33.0234375;
-    // the position of the upper left of the map, measured in lat/lon
-    pub const MAP_SHIFT_X: f64 = -125.08;
-    pub const MAP_SHIFT_Y: f64 = 49.44;
+    // Meters per pixel of the hypothetical extrapolated full world version of
+    // the rawmap (8454px x 8454px or so)
+    pub const RESOLUTION: f64 = (2.0 * PI * 6378137.0) / 8454.0;
 
-    fn resolution(zoom: f64) -> f64 {
-        INITIAL_RESOLUTION / (2.0_f64).powf(zoom)
-    }
+    // the position of the upper left of the map, measured in meters,
+    // calculated in the smaller 700x700 Wikipedia reference image, so we have
+    // to use a different resolution
+    pub const MAP_SHIFT_X: f64 = 108.0 * (2.0 * PI * 6378137.0) / 700.0;
+    pub const MAP_SHIFT_Y: f64 = 241.0 * (2.0 * PI * 6378137.0) / 700.0;
 
-    pub fn meters_to_lat_lon(mx: f64, my: f64) -> (f64, f64) {
-        let lon = (mx / ORIGIN_SHIFT) * 180.0;
-        let mut lat = (my / ORIGIN_SHIFT) * 180.0;
-
-        lat = 180.0 / std::f64::consts::PI
-            * (2.0 * (lat * std::f64::consts::PI / 180.0).exp().atan()
-                - std::f64::consts::PI / 2.0);
-        (lat + MAP_SHIFT_X, lon + MAP_SHIFT_Y)
+    pub fn meters_to_lon_lat(mx: f64, my: f64) -> (f64, f64) {
+        // longitude is right to left
+        // lattitude is top to bottom
+        let from = "EPSG:3857";
+        let to = "EPSG:4326";
+        let merc_meters_to_lonlat = Proj::new_known_crs(&from, &to, None).unwrap();
+        let (lon, lat) = merc_meters_to_lonlat.convert((mx, my)).unwrap();
+        (lon, lat)
     }
 
     pub fn pixels_to_meters(px: f64, py: f64, map_state: &Arc<MapState>) -> (f64, f64) {
-        println!("pixels to meters:");
         let pp = *map_state.pan_position.read().unwrap();
         let zoom_level = *map_state.zoom_level.read().unwrap() as f64;
 
         // Adjust for panning and zooming (pixel x,y to absolute x,y)
+
+        // NOTE: We know (ax, ay) are the exact perfectly accurate
+        // pixel-coordinates of the click in the rawmap
         let ax = (px - pp.0) / zoom_level;
         let ay = (py - pp.1) / zoom_level;
-        let res = self::resolution(zoom_level * BASE_ZOOM_FACTOR);
 
-        let mx = ax * res - ORIGIN_SHIFT;
-        let my = ay * res - ORIGIN_SHIFT;
-
-        println!(
-            "Click position: {:?}\nPan position: {:?}\nZoom level: {}\nAbsolute position: {:?}\nResolution: {:?}\nMeter position: {:?}",
-            (px, py),
-            pp,
-            zoom_level,
-            (ax, ay),
-            res,
-            (mx, my)
-        );
+        let mx = ax * RESOLUTION + MAP_SHIFT_X;
+        let my = ay * RESOLUTION + MAP_SHIFT_Y;
+        // The problem with this my is that it's measured from the top left
+        // corner of the north pole (in mercator) and that's not how mercator
+        // coordinates actually work --- they measure from the equator! So we
+        // need to subtract from half the height of the unrolled mercator Earth
+        let my = ORIGIN_SHIFT - my;
 
         (mx, my)
     }
