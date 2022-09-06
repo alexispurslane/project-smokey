@@ -29,7 +29,7 @@ pub mod map {
         (lon, lat)
     }
 
-    pub fn pixels_to_meters(px: f64, py: f64, map_state: &Arc<MapState>) -> (f64, f64) {
+    pub fn pixels_to_image_coordinates(px: f64, py: f64, map_state: &Arc<MapState>) -> (f64, f64) {
         let pp = *map_state.pan_position.read().unwrap();
         let zoom_level = *map_state.zoom_level.read().unwrap() as f64;
 
@@ -39,6 +39,11 @@ pub mod map {
         // pixel-coordinates of the click in the rawmap
         let ax = (px - pp.0) / zoom_level;
         let ay = (py - pp.1) / zoom_level;
+        (ax, ay)
+    }
+
+    pub fn pixels_to_meters(px: f64, py: f64, map_state: &Arc<MapState>) -> (f64, f64) {
+        let (ax, ay) = pixels_to_image_coordinates(px, py, map_state);
 
         let mx = ax * RESOLUTION + MAP_SHIFT_X;
         let my = ay * RESOLUTION + MAP_SHIFT_Y;

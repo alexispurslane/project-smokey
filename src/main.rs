@@ -1,15 +1,30 @@
 use std::sync::{Arc, RwLock};
 
 use gtk::{
+    cairo::Context,
     gdk::{Event, EventMask, EventMotion, EventScroll, ScrollDirection},
     gdk_pixbuf::Pixbuf,
-    glib,
+    glib::{self, translate::ToGlibPtr},
     prelude::*,
-    DrawingArea, EventBox,
+    Align, BaselinePosition, DrawingArea, EventBox, FlowBox, Label, Orientation, Statusbar,
 };
+use std::future::Future;
+
+pub fn thread_context() -> glib::MainContext {
+    glib::MainContext::thread_default().unwrap_or_else(|| {
+        let ctx = glib::MainContext::new();
+        unsafe {
+            glib::ffi::g_main_context_push_thread_default(ctx.to_glib_none().0);
+        }
+        ctx
+    })
+}
 
 mod utils;
-use crate::utils::map::{meters_to_lon_lat, pixels_to_meters};
+use crate::utils::map::{meters_to_lon_lat, pixels_to_image_coordinates, pixels_to_meters};
+
+mod backend;
+use crate::backend::predict;
 
 pub struct MapState {
     pan_position: RwLock<(f64, f64)>,
@@ -22,53 +37,7 @@ pub struct MapState {
     mouse_position: RwLock<(f64, f64)>,
 }
 
-async fn dialog(pos: (f64, f64), map_state: Arc<MapState>) {
-    // Since the mouse has been released, test if we actually dragged
-    // or just clicked. If we just clicked, let's get the lattitude and
-    // longitude of the click.
-    println!("Click!");
-    let meters = pixels_to_meters(pos.0, pos.1, &map_state);
-    let lonlat = meters_to_lon_lat(meters.0, meters.1);
-
-    let info_dialog = gtk::MessageDialog::builder()
-        .modal(true)
-        .buttons(gtk::ButtonsType::Close)
-        .text("Results")
-        .secondary_text(&format!("(LONG, LAT): {:?}", lonlat))
-        .build();
-
-    info_dialog.run_future().await;
-    info_dialog.close();
-}
-
-fn build_ui(application: &gtk::Application) {
-    let window = gtk::ApplicationWindow::new(application);
-
-    window.set_title("Project Smokey - Wildfire Prediction");
-    window.set_events(EventMask::BUTTON_PRESS_MASK);
-    window.set_position(gtk::WindowPosition::Center);
-    window.set_default_size(700, 700);
-
-    let evt_box = EventBox::builder()
-        .events(
-            EventMask::BUTTON_PRESS_MASK | EventMask::SCROLL_MASK | EventMask::POINTER_MOTION_MASK,
-        )
-        .expand(true)
-        .has_focus(true)
-        .tooltip_text(
-            "Click anywhere within the US on this map to get a wildfire probability there",
-        )
-        .build();
-
-    let map_state = Arc::new(MapState {
-        pan_position: RwLock::new((0.0, 0.0)),
-        pan_start_pos: RwLock::new((0.0, 0.0)),
-        pan_delta: RwLock::new((0.0, 0.0)),
-        mouse_position: RwLock::new((0.0, 0.0)),
-        zoom_level: RwLock::new(1.0),
-        panning: RwLock::new(false),
-    });
-
+fn event_box_hook_up(evt_box: &EventBox, statusbar: Arc<Statusbar>, map_state: Arc<MapState>) {
     {
         let map_state = map_state.clone();
         evt_box.connect("scroll-event", false, move |args| {
@@ -136,9 +105,12 @@ fn build_ui(application: &gtk::Application) {
             // Calculate the lattitude and longitude (and eventually run the
             // model) on a new thread, that's popped up in a dialog to display
             // the results and indicate a computation is occuring
+            let pos = event.position();
             if !did_pan {
-                glib::MainContext::default()
-                    .spawn_local(dialog(event.position(), map_state.clone()));
+                let map_state = map_state.clone();
+                std::thread::spawn(move || {
+                    thread_context().block_on(predict(pos, map_state));
+                });
             }
             Inhibit(false)
         });
@@ -162,14 +134,38 @@ fn build_ui(application: &gtk::Application) {
 
                 evt_box.child().unwrap().queue_draw();
             }
+
+            drop(mouse_position);
+
+            let meters = pixels_to_meters(
+                motion_event.position().0,
+                motion_event.position().1,
+                &map_state,
+            );
+            let apos = pixels_to_image_coordinates(
+                motion_event.position().0,
+                motion_event.position().1,
+                &map_state,
+            );
+            let lonlat = meters_to_lon_lat(meters.0, meters.1);
+
+            statusbar.push(
+                statusbar.context_id("cursor coord data"),
+                format!(
+                    "ABS: ({:.2}, {:.2}), MERC: ({:.2}, {:.2}), LON/LAT: ({:.2}, {:.2})",
+                    apos.0, apos.1, meters.0, meters.1, lonlat.0, lonlat.1
+                )
+                .as_ref(),
+            );
             Inhibit(false)
         });
     }
+}
 
+fn draw_map(map_state: Arc<MapState>) -> impl Fn(&DrawingArea, &Context) -> Inhibit {
     let pixbuf =
         Pixbuf::from_file("assets/rawmap.png").expect("Can't load image necessary for application");
-    let drawing_area = Box::new(DrawingArea::new)();
-    drawing_area.connect_draw(move |_, cr| {
+    return move |_, cr| {
         let zoom_level = map_state.zoom_level.read().unwrap();
         cr.scale(*zoom_level as f64, *zoom_level as f64);
 
@@ -187,17 +183,79 @@ fn build_ui(application: &gtk::Application) {
         cr.paint().expect("Can't paint?");
 
         Inhibit(false)
-    });
-    evt_box.add(&drawing_area);
+    };
+}
 
-    window.add(&evt_box);
+fn build_ui(application: &gtk::Application) {
+    let window = gtk::ApplicationWindow::new(application);
+
+    window.set_title("Project Smokey - Wildfire Prediction");
+    window.set_events(EventMask::BUTTON_PRESS_MASK);
+    window.set_position(gtk::WindowPosition::Center);
+    window.set_default_size(1400, 900);
+
+    // Event box to contain map
+    let evt_box = EventBox::builder()
+        .events(
+            EventMask::BUTTON_PRESS_MASK | EventMask::SCROLL_MASK | EventMask::POINTER_MOTION_MASK,
+        )
+        .expand(true)
+        .has_focus(true)
+        .tooltip_text(
+            "Click anywhere within the US on this map to get a wildfire probability there",
+        )
+        .build();
+
+    let map_state = Arc::new(MapState {
+        pan_position: RwLock::new((0.0, 0.0)),
+        pan_start_pos: RwLock::new((0.0, 0.0)),
+        pan_delta: RwLock::new((0.0, 0.0)),
+        mouse_position: RwLock::new((0.0, 0.0)),
+        zoom_level: RwLock::new(1.0),
+        panning: RwLock::new(false),
+    });
+
+    // Drawing area to draw map
+    let drawing_area = Box::new(DrawingArea::new)();
+    drawing_area.connect_draw(draw_map(map_state.clone()));
+
+    evt_box.add(&drawing_area);
+    // End drawing area
+    // End event box
+
+    // Status bar to display info on where the cursor is
+    let statusbar = Arc::new(
+        Statusbar::builder()
+            .baseline_position(BaselinePosition::Bottom)
+            .can_focus(false)
+            .halign(Align::Fill)
+            .hexpand(true)
+            .margin(3)
+            .opacity(0.3)
+            .height_request(15)
+            .build(),
+    );
+    // End status bar
+
+    let vbox = gtk::Box::builder()
+        .orientation(Orientation::Vertical)
+        .build();
+    vbox.pack_start(&evt_box, true, true, 0);
+    vbox.pack_end(statusbar.as_ref(), false, true, 0);
+
+    window.add(&vbox);
+
+    // Set up the window's events, with access to all the widgets and stuff it needs
+    event_box_hook_up(&evt_box, statusbar.clone(), map_state.clone());
 
     window.show_all();
 }
 
 fn main() {
-    let application =
-        gtk::Application::new(Some("com.github.gtk-rs.examples.basic"), Default::default());
+    let application = gtk::Application::new(
+        Some("com.alexispurslane.project-smokey"),
+        Default::default(),
+    );
 
     application.connect_activate(build_ui);
 
