@@ -101,7 +101,7 @@ pub fn event_box_hook_up(
                 let lonlat = meters_to_lon_lat(meters.0, meters.1);
                 match send_prediction_req.send(lonlat) {
                     Ok(_) => println!("[GUI THREAD] - Prediction location sent"),
-                    Err(e) => panic!("{}", e),
+                    Err(e) => panic!("[GUI THREAD] - {}", e),
                 }
             }
             Inhibit(false)

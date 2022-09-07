@@ -88,12 +88,7 @@ fn build_ui(application: &gtk::Application) {
     // needs
     let (lonlat_send, lonlat_recv) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
     let (prediction_send, prediction_recv) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    event_box_hook_up(
-        &evt_box,
-        statusbar.clone(),
-        map_state.clone(),
-        lonlat_send.clone(),
-    );
+    event_box_hook_up(&evt_box, statusbar.clone(), map_state.clone(), lonlat_send);
 
     let background_context = MainContext::new();
     std::thread::spawn(move || {
