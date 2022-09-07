@@ -1,11 +1,10 @@
-use crate::{utils::map::*, MapState};
-use std::{
-    sync::{mpsc::Sender, Arc},
-    thread,
-    time::Duration,
-};
+use gtk::glib::random_double_range;
 
-pub async fn predict((lon, lat): (f64, f64), send_result: Sender<f64>) {
+use std::{thread, time::Duration};
+
+pub struct Prediction(pub f64);
+
+pub fn predict((lon, lat): (f64, f64)) -> Prediction {
     thread::sleep(Duration::from_secs(5));
-    send_result.send(0.0).unwrap();
+    Prediction(random_double_range(0.0, 1.0))
 }
