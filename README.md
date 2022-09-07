@@ -17,7 +17,10 @@ models, trained on a database of 1.88 million wildfires in the US taking place
 over roughly the two decades leading up to 2015 as well as the specific weather
 conditions for the days leading up to that wildfire. Essentially, given weather
 as an input, the models predict the chance that a wildfire will break out, and
-its severity. In order to account for hidden differences in each region that we
+its severity. To get a wildfire *prediction*, then, we just need to feed
+*weather* predictions into the wildfire prediction model.
+
+In order to account for hidden differences in each region that we
 can't directly pull data for that might effect how weather interacts to produce
 wildfires, such as specific differences in climate and vegetation that we don't
 have granular-enough data to account for, or regional topography, we bin
