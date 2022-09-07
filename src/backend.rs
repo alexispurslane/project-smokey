@@ -1,10 +1,11 @@
 use crate::{utils::map::*, MapState};
-use std::{sync::Arc, thread, time::Duration};
+use std::{
+    sync::{mpsc::Sender, Arc},
+    thread,
+    time::Duration,
+};
 
-pub async fn predict((px, py): (f64, f64), map_state: Arc<MapState>) {
-    let meters = pixels_to_meters(px, py, &map_state);
-    let lonlat = meters_to_lon_lat(meters.0, meters.1);
-
+pub async fn predict((lon, lat): (f64, f64), send_result: Sender<f64>) {
     thread::sleep(Duration::from_secs(5));
-    println!("badoop");
+    send_result.send(0.0).unwrap();
 }

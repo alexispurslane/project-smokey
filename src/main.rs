@@ -1,4 +1,8 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    mpsc,
+    mpsc::{Receiver, Sender},
+    Arc, RwLock,
+};
 
 use gtk::{
     cairo::Context,
@@ -6,7 +10,7 @@ use gtk::{
     gdk_pixbuf::Pixbuf,
     glib::{self, translate::ToGlibPtr},
     prelude::*,
-    Align, BaselinePosition, DrawingArea, EventBox, FlowBox, Label, Orientation, Statusbar,
+    Align, BaselinePosition, Dialog, DrawingArea, EventBox, FlowBox, Label, Orientation, Statusbar,
 };
 use std::future::Future;
 
@@ -37,7 +41,12 @@ pub struct MapState {
     mouse_position: RwLock<(f64, f64)>,
 }
 
-fn event_box_hook_up(evt_box: &EventBox, statusbar: Arc<Statusbar>, map_state: Arc<MapState>) {
+fn event_box_hook_up(
+    evt_box: &EventBox,
+    statusbar: Arc<Statusbar>,
+    map_state: Arc<MapState>,
+    send_prediction_req: Sender<(f64, f64)>,
+) {
     {
         let map_state = map_state.clone();
         evt_box.connect("scroll-event", false, move |args| {
@@ -105,12 +114,11 @@ fn event_box_hook_up(evt_box: &EventBox, statusbar: Arc<Statusbar>, map_state: A
             // Calculate the lattitude and longitude (and eventually run the
             // model) on a new thread, that's popped up in a dialog to display
             // the results and indicate a computation is occuring
-            let pos = event.position();
             if !did_pan {
-                let map_state = map_state.clone();
-                std::thread::spawn(move || {
-                    thread_context().block_on(predict(pos, map_state));
-                });
+                let (px, py) = event.position();
+                let meters = pixels_to_meters(px, py, &map_state);
+                let lonlat = meters_to_lon_lat(meters.0, meters.1);
+                send_prediction_req.send(lonlat);
             }
             Inhibit(false)
         });
@@ -245,8 +253,23 @@ fn build_ui(application: &gtk::Application) {
 
     window.add(&vbox);
 
-    // Set up the window's events, with access to all the widgets and stuff it needs
-    event_box_hook_up(&evt_box, statusbar.clone(), map_state.clone());
+    // Set up the window's events, with access to all the widgets and stuff it
+    // needs
+    let (lonlat_send, lonlat_recv) = mpsc::channel();
+    let (prediction_send, prediction_recv) = mpsc::channel();
+    event_box_hook_up(&evt_box, statusbar.clone(), map_state.clone(), lonlat_send);
+
+    std::thread::spawn(move || {
+        for received in lonlat_recv {
+            thread_context().block_on(predict(received, prediction_send.clone()))
+        }
+    });
+
+    std::thread::spawn(move || {
+        for prediction in prediction_recv {
+            println!("{}", prediction);
+        }
+    });
 
     window.show_all();
 }

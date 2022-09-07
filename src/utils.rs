@@ -29,9 +29,9 @@ pub mod map {
         (lon, lat)
     }
 
-    pub fn pixels_to_image_coordinates(px: f64, py: f64, map_state: &Arc<MapState>) -> (f64, f64) {
-        let pp = *map_state.pan_position.read().unwrap();
-        let zoom_level = *map_state.zoom_level.read().unwrap() as f64;
+    pub fn pixels_to_image_coordinates(px: f64, py: f64, app_state: &Arc<MapState>) -> (f64, f64) {
+        let pp = *app_state.pan_position.read().unwrap();
+        let zoom_level = *app_state.zoom_level.read().unwrap() as f64;
 
         // Adjust for panning and zooming (pixel x,y to absolute x,y)
 
@@ -42,8 +42,8 @@ pub mod map {
         (ax, ay)
     }
 
-    pub fn pixels_to_meters(px: f64, py: f64, map_state: &Arc<MapState>) -> (f64, f64) {
-        let (ax, ay) = pixels_to_image_coordinates(px, py, map_state);
+    pub fn pixels_to_meters(px: f64, py: f64, app_state: &Arc<MapState>) -> (f64, f64) {
+        let (ax, ay) = pixels_to_image_coordinates(px, py, app_state);
 
         let mx = ax * RESOLUTION + MAP_SHIFT_X;
         let my = ay * RESOLUTION + MAP_SHIFT_Y;
