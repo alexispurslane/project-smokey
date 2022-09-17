@@ -1,0 +1,3 @@
+Loop through all days 2005-2015, and, for each data, each bin in the grid, training on these inputs and outputs. Each day will be the "tomorrow" date, the date the user is requesting a prediction for, not the date the prediction will be asked for.
+- **Inputs**: same inputs as listed in [[Neural Network Inputs and Outputs]], but with the prediction replaced with the actual weather on the day
+- **Training Output**: 1.0 if there was a wildfire on that day in that bin, 0.0 if not.

@@ -1,0 +1,137 @@
+{
+  "main": {
+    "id": "5cbd3f2fa749a30a",
+    "type": "split",
+    "children": [
+      {
+        "id": "128f8d1b7c5755b5",
+        "type": "leaf",
+        "state": {
+          "type": "markdown",
+          "state": {
+            "file": "Neural Network Inputs and Outputs.md",
+            "mode": "source",
+            "source": false
+          }
+        }
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "2d05bac98e2235dd",
+    "type": "split",
+    "children": [
+      {
+        "id": "089d76a27da9ac4a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "42463b6382f7a32c",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {}
+            }
+          },
+          {
+            "id": "412ba6273eed4f9e",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              }
+            }
+          },
+          {
+            "id": "1bf280a5515bf85b",
+            "type": "leaf",
+            "state": {
+              "type": "starred",
+              "state": {}
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "c08f7e083dfde9df",
+    "type": "split",
+    "children": [
+      {
+        "id": "d4c36284b1460092",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c8233099a85410ff",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Neural Network Inputs and Outputs.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "529486a04ce17fbb",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Neural Network Inputs and Outputs.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "a26f1b9c9b0f3699",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true
+              }
+            }
+          },
+          {
+            "id": "3e24c9853659756d",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Neural Network Inputs and Outputs.md"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "active": "128f8d1b7c5755b5",
+  "lastOpenFiles": [
+    "Neural Network Design.md",
+    "Neural Network Inputs and Outputs.md",
+    "Training Data.md"
+  ]
+}
