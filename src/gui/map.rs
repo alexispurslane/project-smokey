@@ -4,7 +4,6 @@ use gtk::{
     cairo::Context,
     gdk::{Event, EventMotion, EventScroll, ScrollDirection},
     gdk_pixbuf::Pixbuf,
-    glib::Sender,
     prelude::*,
     DrawingArea, EventBox, Statusbar,
 };
@@ -26,7 +25,7 @@ pub fn event_box_hook_up(
     evt_box: &EventBox,
     statusbar: Arc<Statusbar>,
     map_state: Arc<MapState>,
-    send_prediction_req: Sender<(f64, f64)>,
+    predict: impl Fn((f64, f64)) -> () + 'static,
 ) {
     {
         let map_state = map_state.clone();
@@ -99,10 +98,8 @@ pub fn event_box_hook_up(
                 let (px, py) = event.position();
                 let meters = pixels_to_meters(px, py, &map_state);
                 let lonlat = meters_to_lon_lat(meters.0, meters.1);
-                match send_prediction_req.send(lonlat) {
-                    Ok(_) => println!("[GUI THREAD] - Prediction location sent"),
-                    Err(e) => panic!("[GUI THREAD] - {}", e),
-                }
+                println!("click!");
+                predict(lonlat)
             }
             Inhibit(false)
         });

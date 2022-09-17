@@ -1,8 +1,11 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    sync::{Arc, RwLock},
+    thread,
+};
 
 use gtk::{
     gdk::EventMask,
-    glib::{self, translate::ToGlibPtr, MainContext, Receiver, Sender},
+    glib::{self, clone, translate::ToGlibPtr},
     prelude::*,
     Align, BaselinePosition, Dialog, DrawingArea, EventBox, Label, Orientation, Statusbar,
 };
@@ -20,7 +23,6 @@ pub fn thread_context() -> glib::MainContext {
 mod utils;
 
 mod backend;
-use crate::backend::predict;
 
 mod gui;
 use crate::gui::map::*;
@@ -86,47 +88,50 @@ fn build_ui(application: &gtk::Application) {
 
     // Set up the window's events, with access to all the widgets and stuff it
     // needs
-    let (lonlat_send, lonlat_recv) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    let (prediction_send, prediction_recv) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-    event_box_hook_up(&evt_box, statusbar.clone(), map_state.clone(), lonlat_send);
-
-    let background_context = MainContext::new();
-    std::thread::spawn(move || {
-        lonlat_recv.attach(Some(&background_context), move |received| {
-            println!(
-                "[BACKGROUND THREAD] - Coordinates for prediction received: {:?}",
-                received
-            );
-            let pred = predict(received);
-            prediction_send.send(pred).unwrap();
-            println!("[BACKGROUND THREAD] - Prediction sent");
-            glib::Continue(true)
-        });
-    });
-
-    window.show_all();
-
     let dialog = Dialog::builder()
         .title("Prediction Results")
         .transient_for(&window)
         .destroy_with_parent(true)
+        .width_request(300)
+        .height_request(250)
         .build();
     let ca = dialog.content_area();
-    let label = Label::new(Some(
-        "<span foreground=\"blue\" size=\"x-large\">Prediction: N/A</span>",
-    ));
+    let label = Label::new(Some("Prediction: N/A"));
     ca.pack_start(&label, true, true, 30);
-    prediction_recv.attach(None, move |pred| {
-        println!("[GUI THREAD] - Prediction received: {}", pred.0);
-        let s = format!(
-            "<span foreground=\"blue\" size=\"x-large\">Prediction: {}</span>",
-            pred.0
-        );
-        label.set_markup(&s);
-        println!("Running dialog...");
-        dialog.run();
-        glib::Continue(true)
-    });
+    event_box_hook_up(
+        &evt_box,
+        statusbar.clone(),
+        map_state.clone(),
+        move |lonlat| {
+            let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+            thread::spawn(move || {
+                let pred = backend::predict(lonlat);
+                sender.send(pred).unwrap();
+            });
+            receiver.attach(
+                None,
+                clone!(@weak label, @weak dialog => @default-return Continue(false), move |pred| {
+                    let color = if pred.0 >= backend::DANGER_CUTOFF {
+                        "red"
+                    } else if pred.0 > backend::WARNING_CUTOFF {
+                        "orange"
+                    } else {
+                        "green"
+                    };
+                    let s = format!(
+                        "Prediction: <span color=\"{}\" size=\"x-large\">{:.2}</span>",
+                        color, pred.0
+                    );
+                    label.set_markup(&s);
+                    println!("Running dialog...");
+                    dialog.show_all();
+                    Continue(true)
+                }),
+            );
+        },
+    );
+
+    window.show_all();
 }
 
 fn main() {
