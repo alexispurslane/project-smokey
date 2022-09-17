@@ -945,6 +945,7 @@ name = "project-smokey"
 version = "0.1.0"
 dependencies = [
  "gtk",
+ "lazy_static",
  "proj",
  "rusqlite",
  "tensorflow",

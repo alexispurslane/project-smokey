@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 use std::{
     sync::{Arc, RwLock},
     thread,
@@ -92,8 +95,8 @@ fn build_ui(application: &gtk::Application) {
         .title("Prediction Results")
         .transient_for(&window)
         .destroy_with_parent(true)
-        .width_request(300)
-        .height_request(250)
+        .width_request(400)
+        .height_request(200)
         .build();
     let ca = dialog.content_area();
     let label = Label::new(Some("Prediction: N/A"));
@@ -104,26 +107,19 @@ fn build_ui(application: &gtk::Application) {
         map_state.clone(),
         move |lonlat| {
             let (sender, receiver) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+            println!("GUI: Spawning thead to process model run request...");
             thread::spawn(move || {
+                println!("MODEL: Thread spawned, processing...");
                 let pred = backend::predict(lonlat);
+                println!("MODEL: Prediction result acquired, sending back...");
                 sender.send(pred).unwrap();
             });
             receiver.attach(
                 None,
                 clone!(@weak label, @weak dialog => @default-return Continue(false), move |pred| {
-                    let color = if pred.0 >= backend::DANGER_CUTOFF {
-                        "red"
-                    } else if pred.0 > backend::WARNING_CUTOFF {
-                        "orange"
-                    } else {
-                        "green"
-                    };
-                    let s = format!(
-                        "Prediction: <span color=\"{}\" size=\"x-large\">{:.2}</span>",
-                        color, pred.0
-                    );
-                    label.set_markup(&s);
-                    println!("Running dialog...");
+                    println!("GUI: Prediction result received, displaying...");
+                    let message = utils::format_prediction(pred);
+                    label.set_markup(&message);
                     dialog.show_all();
                     Continue(true)
                 }),
@@ -140,6 +136,14 @@ fn main() {
         Default::default(),
     );
 
+    match backend::load_model("prediction_model/".to_string()) {
+        Err(err) => {
+            println!("ERROR LOADING MODEL: {:?}", (*err).to_string());
+        }
+        _ => {
+            println!("MODEL: Loaded model successfully!");
+        }
+    }
     application.connect_activate(build_ui);
 
     application.run();

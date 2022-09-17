@@ -1,3 +1,5 @@
+use crate::backend;
+
 pub mod map {
 
     use proj::Proj;
@@ -55,5 +57,29 @@ pub mod map {
         let my = ORIGIN_SHIFT - my;
 
         (mx, my)
+    }
+}
+
+pub fn format_prediction(pred: Result<f64, &'static str>) -> String {
+    match pred {
+        Ok(pred) => {
+            let color = if pred >= backend::DANGER_CUTOFF {
+                "red"
+            } else if pred > backend::WARNING_CUTOFF {
+                "orange"
+            } else {
+                "green"
+            };
+            format!(
+                "Prediction: <span color=\"{}\" size=\"x-large\">{:.2}</span>",
+                color, pred
+            )
+        }
+        Err(error) => {
+            format!(
+                "<span color=\"red\" size=\"x-large\">⚠ Error:</span> {}",
+                error
+            )
+        }
     }
 }
