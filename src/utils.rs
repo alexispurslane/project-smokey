@@ -60,7 +60,7 @@ pub mod map {
     }
 }
 
-pub fn format_prediction(pred: Result<f64, &'static str>) -> String {
+pub fn format_prediction(pred: Result<f64, Box<dyn std::error::Error + Send + Sync>>) -> String {
     match pred {
         Ok(pred) => {
             let color = if pred >= backend::DANGER_CUTOFF {
@@ -77,7 +77,7 @@ pub fn format_prediction(pred: Result<f64, &'static str>) -> String {
         }
         Err(error) => {
             format!(
-                "<span color=\"red\" size=\"x-large\">⚠ Error:</span> {}",
+                "<span color=\"red\" size=\"x-large\">⚠ Error:</span> {:?}",
                 error
             )
         }

@@ -1,3 +1,5 @@
 tensorflow
 sqlite3
 arcgis
+pyyaml
+h5py

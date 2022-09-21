@@ -1,4 +1,5 @@
 from time import time
+import os
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
@@ -47,33 +48,52 @@ column_names = [
     'Was Wildfire'
     ]
 
-dataset = pd.read_csv('training_data.csv',
-                      names=column_names,
-                      na_values='?',
-                      comment='\t',
-                      sep=' ',
-                      skipinitialspace=True)
-dataset = dataset.dropna()
-train_dataset = dataset.sample(frac=0.8, random_state=0)
-test_dataset = dataset.drop(train_dataset.index)
+##### LOAD TRAINING DATA
+def load_data(path='training_data.csv'):
+    dataset = pd.read_csv(path,
+                        names=column_names,
+                        na_values='?',
+                        comment='\t',
+                        sep=' ',
+                        skipinitialspace=True)
+    dataset = dataset.dropna()
+    train_dataset = dataset.sample(frac=0.8, random_state=0)
+    test_dataset = dataset.drop(train_dataset.index)
 
-# Separate the target value we're learning to predict, which is called the
-# 'label' from the rest of the data
-train_features = train_dataset.copy()
-train_labels = train_features.pop('Was Wildfire')
+    # Separate the target value we're learning to predict, which is called the
+    # 'label' from the rest of the data
+    train_features = train_dataset.copy()
+    train_labels = train_features.pop('Was Wildfire')
 
-test_features = test_dataset.copy()
-test_labels = test_features.pop('Was Wildfire')
+    test_features = test_dataset.copy()
+    test_labels = test_features.pop('Was Wildfire')
 
-norm = layers.Normalization(axis=-1)
-norm.adapt(np.array(train_features))
-model = keras.Sequential([
-    norm,
-    layers.Dense(70, activation='relu'),
-    layers.Dense(1)
-])
+    return (train_features, train_labels, test_features, test_labels)
 
-model.compile(loss='mean_absolute_error', optimizer=keras.optimizers.Adam(0.001))
+##### CREATE MODEL ARCH
+def create_model(norm):
+    model = keras.Sequential([
+        norm,
+        layers.Dense(70, activation='relu'),
+        layers.Dense(1, name="model_out")
+    ])
 
-%%time
-history = model.fit(train_features, train_labels, validation_split=0.2, verbose=1, epochs=100)
+    model.compile(loss='mse', optimizer=keras.optimizers.Adam(0.001))
+
+    model.summary()
+
+##### TRAIN MODEL
+def train_model(model):
+    return model.fit(train_features, train_labels, validation_split=0.2, verbose=1, epochs=100)
+
+##### SERIALIZE MODEL FOR USE IN RUST CODE
+def save_model(model, path='../prediction_model'):
+    model.save(path, save_format='tf')
+
+if __name__ == '__main__':
+    (train_features, train_labels, test_features, test_labels) = load_data()
+    norm = layers.Normalization(axis=-1, name="model_in")
+    norm.adapt(np.array(train_features))
+    model = create_model(norm)
+    train_model(model)
+    save_model(model)
